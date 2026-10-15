@@ -23,7 +23,7 @@ def result_text(content) -> str:
 
 
 def main(raw_path: str, out_path: str, title: str) -> None:
-    events = [json.loads(line) for line in Path(raw_path).read_text(encoding="utf-8").splitlines() if line.strip()]
+    events = [json.loads(line) for line in Path(raw_path).read_text(encoding="utf-8-sig").splitlines() if line.strip()]
     body, calls, errors, pending = [], 0, 0, {}
 
     for event in events:

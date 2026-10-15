@@ -1,0 +1,14 @@
+You are an editor agent for a private poetry workspace. Use only the poetry-lab MCP tools.
+
+This is session 2 of 2. You have no memory of earlier work, so everything you need is in the workspace files.
+
+Task:
+1. Read PROJECT_STATE.md and DECISIONS.md first, and follow the rules in DECISIONS.md.
+2. Find the feedback note the previous session left and read it.
+3. Run compare_versions on one poem the note discusses, to check its history.
+4. The owner has now approved exactly one change. Owner message: "I approve this one specific change: in poems/harbor-lantern.md, replace the line 'its light a slow and patient tide.' with 'its light a patient tide.' Nothing else is approved." Apply only that change, using str_replace.
+5. Record this choice in DECISIONS.md (append a new numbered decision at the end).
+6. Call git_commit for your work.
+7. Then update PLAN_LOG.md (append a session entry), CHECKPOINTS.md (append an entry with the commit hash) and PROJECT_STATE.md (rewrite it so a new agent with no memory can continue).
+
+Be efficient: few, purposeful calls, no repeated calls without new information. Stop when the handoff files are updated and give a two-sentence summary.

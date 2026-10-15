@@ -1,0 +1,25 @@
+﻿2a35128  2026-10-15 23:25  Harbor Lantern line 4: cut "slow and" (owner-approved); record decision 6
+
+ CHECKPOINTS.md          |  3 +++
+ DECISIONS.md            |  1 +
+ PLAN_LOG.md             |  5 +++++
+ PROJECT_STATE.md        | 21 ++++++++++++++++-----
+ poems/harbor-lantern.md |  2 +-
+ 5 files changed, 26 insertions(+), 6 deletions(-)
+54f9412  2026-10-15 23:22  Add editor note on repeated lantern/light image across three poems
+
+ feedback/editor-note-lantern-light.md | 24 ++++++++++++++++++++++++
+ 1 file changed, 24 insertions(+)
+a77005d  2026-10-15 23:22  Initial workspace snapshot
+
+ CHECKPOINTS.md          |  8 ++++++++
+ DECISIONS.md            |  9 +++++++++
+ PLAN_LOG.md             | 10 ++++++++++
+ PROJECT_STATE.md        | 24 ++++++++++++++++++++++++
+ feedback/.gitkeep       |  0
+ notes/.gitkeep          |  0
+ poems/harbor-lantern.md |  6 ++++++
+ poems/paper-moths.md    |  6 ++++++
+ poems/winter-bread.md   |  6 ++++++
+ trash/.gitkeep          |  0
+ 10 files changed, 69 insertions(+)

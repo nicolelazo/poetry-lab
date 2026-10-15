@@ -17,6 +17,10 @@ Poetry Lab is a Python MCP file server (official MCP Python SDK, `FastMCP`, Stre
 7. **Run the tests after every change** and show the output.
 8. **Stay inside this project folder.** Use fake sample poems only, never real ones.
 
+## Status
+
+M1 to M5 are complete (see `git log`). The two-session demo is recorded in `transcripts/`; README, REPORT and DEMO_SCRIPT are written. Remaining work is the owner's: rehearse the live demo and read the class AI-use policy (REPORT section 8).
+
 ## Project facts worth remembering
 
 * Windows, Python 3.11.9, virtual environment in `.venv/` (run tools with `.\.venv\Scripts\python.exe`).
