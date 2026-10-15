@@ -1,6 +1,6 @@
 # Poetry Lab: Report
 
-Course project: Week 06 Model Context Protocol, Midterms Pt 1. Written for the instructor and graders. Evidence referenced here is in this repository: `transcripts/` (demo sessions, call log, workspace git history), `tests/`, and the git log of this repo.
+Course project: Week 06 Model Context Protocol, Midterms Pt 1. Written for the instructor and graders. Evidence referenced here is in this repository: `transcripts/` (tool-call transcripts, call log, workspace git history), `tests/`, and the git log of this repo.
 
 ## 1. What was built
 
@@ -51,13 +51,13 @@ Each tool does one verb on one noun, has a strict typed schema, and a descriptio
 * **Large file abuse.** A 100 KB cap on every read and write, a 500-line cap per read, a capped diff, a capped search, and a 4 MB request body limit from the SDK.
 * **Concurrent writes.** Two agents on one workspace could interleave read-modify-write. One lock serialises mutations; writes are atomic (temp file then rename, with a short retry for Windows file locks); `if_version` lets an agent detect that someone else changed a file. A test runs 20 simultaneous `str_replace` calls and loses none. Not solved: two agents each holding a stale `version` can still conflict at the level of meaning, only at the level of bytes is it prevented.
 
-## 5. Evidence: the two-session demo
+## 5. Evidence: one task across two sessions
 
-Task, using fake sample poems: two fresh agent sessions, started from an empty folder with no memory, each connecting to the live server over public HTTPS with the bearer token. Recordings: `transcripts/session1.md` and `session2.md` (raw JSON next to them).
+Task, using fake sample poems: two fresh agent sessions, started from an empty folder with no memory, each connecting to the live server over public HTTPS with the bearer token. Transcripts of every tool call: `transcripts/session1.md` and `transcripts/session2.md`. The final handoff files, call log and workspace git history are in `transcripts/evidence/`.
 
 * **Session 1** read `PROJECT_STATE` and `DECISIONS`, searched for the repeated image *before* opening any poem, read the poems that matched, wrote one feedback note, committed, and updated the three handoff files. 17 tool calls (16 on this server plus one client-side tool-discovery call), 0 errors.
 * **Session 2** (no memory) read `PROJECT_STATE`, found the note, ran `compare_versions` on a poem, applied **only** the one change I approved ("its light a slow and patient tide." to "its light a patient tide.") with `str_replace`, appended decision 6 to `DECISIONS.md`, committed, and updated the handoff files. 15 tool calls (14 on this server plus one tool-discovery call), 0 errors.
-* **Totals from the server log** (`transcripts/demo_evidence/call_stats.txt`): 30 calls, 0 errors: 13 `read_file`, 8 `write_file`, 3 `search_poems`, 2 `list_files`, 2 `git_commit`, 1 `compare_versions`, 1 `str_replace`. The workspace's own git history (`workspace_git_log.txt`) shows the initial snapshot, the feedback note, then the one-line edit, and `poem_diff.txt` shows exactly the approved change.
+* **Totals from the server log** (`transcripts/evidence/call_stats.txt`): 30 calls, 0 errors: 13 `read_file`, 8 `write_file`, 3 `search_poems`, 2 `list_files`, 2 `git_commit`, 1 `compare_versions`, 1 `str_replace`. The workspace's own git history (`workspace_git_log.txt`) shows the initial snapshot, the feedback note, then the one-line edit, and `poem_diff.txt` shows exactly the approved change.
 
 ### Honest assessment of efficiency
 
@@ -70,7 +70,7 @@ Task, using fake sample poems: two fresh agent sessions, started from an empty f
 * The newest MCP SDK broke the course's import; pinned to 1.x (section 2).
 * ngrok refused my installed agent (3.3.1; the account now requires 3.20.0 or newer), which made the tunnel crash-loop under pm2; I updated it and documented the fix in the README.
 * A stray `package.json` with `"type": "module"` in a parent folder made Node treat `ecosystem.config.js` as an ES module; a small `package.json` in the repo overrides it.
-* In a later rehearsal of the same demo, one request failed with `ERR_NGROK_3004` (the free tunnel dropped it before it reached the server, so the server log shows no error). The agent recognised a transient gateway error, retried that one read, and finished the task. This is the cost of a free tunnel in front of a local machine, and why the README and demo script say to retry once and keep the saved transcripts as a fallback.
+* In a second run of the same task, one request failed with `ERR_NGROK_3004` (the free tunnel dropped it before it reached the server, so the server log shows no error). The agent recognised a transient gateway error, retried that one read, and finished the task. This is the cost of a free tunnel in front of a local machine; the README troubleshooting table says to retry once.
 * Tests found two real bugs: git ran before the second ref was validated, and a write could fail when Windows briefly locked a file. Both are fixed and covered by tests.
 
 ## 7. Limits and what I would do next
@@ -79,4 +79,4 @@ One shared token; no rate limiting; no log rotation; the workspace repo has no r
 
 ## 8. Use of AI assistance
 
-Claude Code (Anthropic) wrote the code, tests and documentation at my direction, one milestone at a time under the rules in `CLAUDE.md`, with a commit at the end of each milestone; the commit history shows this. I chose the stack, answered each design question the assistant raised (for example pinning `mcp` below 2), and approved the one poem edit in the demo. The two demo sessions were themselves run by Claude agents through the MCP server. *(Check your class policy on AI tool use and adjust this section if it asks for something specific.)*
+Claude Code (Anthropic) wrote the code, tests and documentation at my direction, one milestone at a time under the rules in `CLAUDE.md`, with a commit at the end of each milestone; the commit history shows this. I chose the stack, answered each design question the assistant raised (for example pinning `mcp` below 2), and approved the one poem edit in the two-session task. The two sessions were themselves run by Claude agents through the MCP server. *(Check your class policy on AI tool use and adjust this section if it asks for something specific.)*

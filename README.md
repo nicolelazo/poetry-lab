@@ -2,7 +2,7 @@
 
 A Python **MCP file server** that gives an AI agent safe access to a private poetry workspace. The agent acts as an *editor with memory*: it reads, searches, compares versions and leaves feedback, and it never invents poem lines. Work continues across separate agent sessions through four handoff files, not through chat memory.
 
-Course project: CS 3A / CS 3B Elective, Week 06 Model Context Protocol, Midterms Pt 1. Requirements are in [SPEC.md](SPEC.md); the design and security reasoning is in [REPORT.md](REPORT.md); the live demo plan is in [DEMO_SCRIPT.md](DEMO_SCRIPT.md).
+Course project: CS 3A / CS 3B Elective, Week 06 Model Context Protocol, Midterms Pt 1. Requirements are in [SPEC.md](SPEC.md); the design and security reasoning is in [REPORT.md](REPORT.md).
 
 ```
 agent / MCP client --HTTPS--> ngrok static domain --> 127.0.0.1:8000 (bearer token check)
@@ -109,17 +109,15 @@ Write zones are `poems/`, `notes/`, `feedback/` and the four handoff files at th
 
 ## The handoff protocol
 
-Every session starts by reading `PROJECT_STATE.md` and `DECISIONS.md`, and ends by updating `PLAN_LOG.md` (what was planned, done, left), `CHECKPOINTS.md` (commit hash and why the state is consistent) and `PROJECT_STATE.md` (current truth). The saved two-session demo is in [transcripts/](transcripts/): readable transcripts (`session1.md`, `session2.md`), the raw recordings, and `demo_evidence/` with the handoff files, workspace git history, poem diff and tool-call stats.
+Every session starts by reading `PROJECT_STATE.md` and `DECISIONS.md`, and ends by updating `PLAN_LOG.md` (what was planned, done, left), `CHECKPOINTS.md` (commit hash and why the state is consistent) and `PROJECT_STATE.md` (current truth). A real task run across two separate agent sessions (the second with no memory of the first) is saved in [transcripts/](transcripts/): the readable tool-call transcripts `session1.md` and `session2.md`, and `evidence/` with the final handoff files, the call log, the workspace's git history and the poem diff.
 
-## Running the demo again
+## Checking agent efficiency
+
+Every tool call is logged to `logs/calls.jsonl`. Summarise it with:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\reset_demo.py                       # restore sample_workspace, clear the call log
-powershell -File scripts\run_demo_session.ps1 -Session 1               # fresh agent, no memory: find image, write feedback, commit, hand off
-powershell -File scripts\run_demo_session.ps1 -Session 2               # second fresh agent: apply the approved edit, record it, commit, hand off
-.\.venv\Scripts\python.exe scripts\call_stats.py                       # tool-call summary after a run
+.\.venv\Scripts\python.exe scripts\call_stats.py
 ```
-The prompts are in `scripts/demo_prompts/`; Session 2's prompt contains the owner's approval of one specific edit, which you change to approve something else. See [DEMO_SCRIPT.md](DEMO_SCRIPT.md) for the live 5-minute plan. `scripts/make_transcript.py` turns a recorded session into a readable transcript.
 
 ## Project layout
 
@@ -137,8 +135,8 @@ poetry_lab/
   tools/gitlite.py        compare_versions, git_commit, git_log, workspace repo setup
 tests/                    pytest: sandbox, tools, git, auth, logging, scripts
 sample_workspace/         fake poems and the four handoff files (committed for graders)
-scripts/                  reset_demo.py, make_transcript.py, call_stats.py
-transcripts/              saved demo sessions and evidence
+scripts/call_stats.py     summarises the call log
+transcripts/              tool-call transcripts of the two-session task, and evidence
 logs/                     call log (git-ignored, outside the workspace)
 ```
 

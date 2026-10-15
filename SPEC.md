@@ -1,7 +1,7 @@
 # SPEC: Poetry Lab MCP Server
 
 Course project: CS 3A / CS 3B Elective, Week 06 Model Context Protocol, Midterms Pt 1.
-Reference slides: `MCP_Week6_Presentation2.pptx.pdf` (sheets 16 to 20 define the requirements and rubric).
+Reference slides: the course deck `MCP_Week6_Presentation2.pptx.pdf`, not included in this repo (sheets 16 to 20 define the requirements and rubric).
 
 ## 1. Goal
 
