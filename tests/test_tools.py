@@ -360,14 +360,19 @@ def test_search_does_not_follow_symlink_out(ws, outside, dir_link):
 
 # ---------- through the real MCP server layer ----------
 
-def test_server_registers_the_six_tools_with_descriptions():
+def test_server_registers_the_nine_tools_with_descriptions():
     import server
 
     tools = asyncio.run(server.mcp.list_tools())
     assert sorted(t.name for t in tools) == [
-        "delete_file", "list_files", "read_file", "search_poems", "str_replace", "write_file",
+        "compare_versions", "delete_file", "git_commit", "git_log", "list_files",
+        "read_file", "search_poems", "str_replace", "write_file",
     ]
     assert all(len(t.description) > 80 for t in tools)
+    # the logging wrapper must not hide the real parameters from the agent
+    read = next(t for t in tools if t.name == "read_file")
+    assert set(read.inputSchema["properties"]) == {"path", "start_line", "max_lines"}
+    assert read.inputSchema["required"] == ["path"]
 
 
 def test_server_rejects_bad_schema_input(ws):
@@ -386,3 +391,106 @@ def test_server_reports_tool_failure_as_error_without_traceback(ws):
         asyncio.run(server.mcp.call_tool("read_file", {"path": "../x"}))
     assert "escapes the workspace root" in str(err.value)
     assert "Traceback" not in str(err.value)
+
+
+# ---------- guards against bad writes ----------
+
+APPEND_ONLY = ["PLAN_LOG.md", "CHECKPOINTS.md", "DECISIONS.md"]
+
+
+@pytest.mark.parametrize("blank", ["", "   ", "\n\n", "\t \n"])
+def test_blank_content_is_refused(ws, blank):
+    with pytest.raises(WorkspaceError, match="blank"):
+        write_file("poems/a.md", blank)
+    with pytest.raises(WorkspaceError, match="blank"):
+        write_file("notes/new.md", blank)
+    assert "Lantern" in (ws / "poems" / "a.md").read_text(encoding="utf-8")
+
+
+def test_replacing_everything_with_nothing_is_refused(ws):
+    (ws / "poems" / "tiny.md").write_text("only", encoding="utf-8")
+    with pytest.raises(WorkspaceError, match="blank"):
+        str_replace("poems/tiny.md", "only", "")
+
+
+def test_nul_characters_are_refused(ws):
+    with pytest.raises(WorkspaceError, match="NUL"):
+        write_file("poems/x.md", "a\x00b")
+    with pytest.raises(WorkspaceError, match="NUL"):
+        str_replace("poems/a.md", "second line", "x\x00y")
+    assert not (ws / "poems" / "x.md").exists()
+
+
+@pytest.mark.parametrize("name", APPEND_ONLY)
+def test_append_only_files_accept_appended_text(ws, name):
+    old = (ws / name).read_text(encoding="utf-8")
+    write_file(name, old + "\n## new entry\n")
+    assert (ws / name).read_text(encoding="utf-8") == old + "\n## new entry\n"
+
+
+@pytest.mark.parametrize("name", APPEND_ONLY)
+def test_append_only_files_refuse_rewrites_and_truncation(ws, name):
+    write_file(name, (ws / name).read_text(encoding="utf-8") + "\nentry one\n")
+    before = (ws / name).read_text(encoding="utf-8")
+    for bad in ("totally new text", before.replace("entry one", "entry ONE"), before[:-8], "prefix " + before):
+        with pytest.raises(WorkspaceError, match="append-only"):
+            write_file(name, bad)
+    assert (ws / name).read_text(encoding="utf-8") == before
+
+
+def test_append_only_via_str_replace(ws):
+    (ws / "PLAN_LOG.md").write_text("# PLAN_LOG\nentry one", encoding="utf-8")
+    str_replace("PLAN_LOG.md", "entry one", "entry one\nentry two")  # appending at the end: fine
+    assert (ws / "PLAN_LOG.md").read_text(encoding="utf-8") == "# PLAN_LOG\nentry one\nentry two"
+    with pytest.raises(WorkspaceError, match="append-only"):
+        str_replace("PLAN_LOG.md", "entry one", "entry changed")  # editing history: refused
+    with pytest.raises(WorkspaceError, match="append-only"):
+        str_replace("PLAN_LOG.md", "# PLAN_LOG", "# Renamed")
+
+
+def test_append_only_tolerates_crlf_files(ws):
+    (ws / "DECISIONS.md").write_bytes(b"# D\r\n1. rule\r\n")
+    write_file("DECISIONS.md", "# D\n1. rule\n2. new rule\n")
+
+
+def test_append_only_files_cannot_be_deleted_or_overwritten_through_a_new_name(ws):
+    with pytest.raises(WorkspaceError):
+        delete_file("PLAN_LOG.md")
+    with pytest.raises(WorkspaceError):
+        write_file("plan_log.md", "x")  # not a handoff name, not in a zone
+
+
+def test_project_state_can_be_fully_rewritten(ws):
+    write_file("PROJECT_STATE.md", "# Fresh state\nNext step: review\n")
+    assert "Fresh state" in (ws / "PROJECT_STATE.md").read_text(encoding="utf-8")
+
+
+def test_poems_can_be_rewritten_freely(ws):
+    write_file("poems/a.md", "A whole new poem\n")
+
+
+def test_if_version_race_second_writer_loses(ws):
+    version = read_file("PROJECT_STATE.md")["version"]
+    write_file("PROJECT_STATE.md", "# writer one\n", if_version=version)  # first writer wins
+    with pytest.raises(WorkspaceError, match="Version mismatch"):
+        write_file("PROJECT_STATE.md", "# writer two\n", if_version=version)
+    assert (ws / "PROJECT_STATE.md").read_text(encoding="utf-8") == "# writer one\n"
+
+
+def test_concurrent_str_replace_never_loses_an_update(ws):
+    import threading
+
+    (ws / "notes" / "counter.md").write_text("\n".join(f"line{i}=0" for i in range(20)), encoding="utf-8")
+    errors = []
+
+    def bump(i):
+        try:
+            str_replace("notes/counter.md", f"line{i}=0", f"line{i}=1")
+        except Exception as err:  # noqa: BLE001
+            errors.append(err)
+
+    threads = [threading.Thread(target=bump, args=(i,)) for i in range(20)]
+    [t.start() for t in threads]
+    [t.join() for t in threads]
+    assert not errors
+    assert (ws / "notes" / "counter.md").read_text(encoding="utf-8") == "\n".join(f"line{i}=1" for i in range(20))

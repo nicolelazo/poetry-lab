@@ -29,6 +29,26 @@ def ws(tmp_path, monkeypatch):
 
 
 @pytest.fixture
+def git_ws(ws):
+    """The workspace with a real git repo (replaces the fake .git folder) and one initial commit."""
+    import shutil
+
+    from poetry_lab.tools import gitlite
+
+    shutil.rmtree(ws / ".git")
+    assert gitlite.ensure_workspace_repo() is True
+    return ws
+
+
+@pytest.fixture
+def log_dir(tmp_path, monkeypatch):
+    """Send the call log to a temp folder outside the workspace."""
+    folder = tmp_path / "logs"
+    monkeypatch.setattr(config, "LOG_DIR", folder)
+    return folder
+
+
+@pytest.fixture
 def outside(tmp_path):
     """A folder next to the workspace with a file the agent must never reach."""
     folder = tmp_path / "outside"

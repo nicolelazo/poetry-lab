@@ -24,6 +24,19 @@ MCP_PORT: int = int(os.environ.get("MCP_PORT", "8000"))
 MAX_FILE_BYTES: int = int(os.environ.get("MAX_FILE_BYTES", "102400"))
 MCP_TOKEN: str = os.environ.get("MCP_TOKEN", "")
 
+def _log_dir() -> Path:
+    path = Path(os.environ.get("LOG_DIR", "logs"))
+    return (path if path.is_absolute() else PROJECT_ROOT / path).resolve()
+
+
+# Call log lives outside the workspace so agents cannot edit it.
+LOG_DIR: Path = _log_dir()
+
+# Limits for the git tools.
+GIT_TIMEOUT_SECONDS: int = 20
+MAX_DIFF_CHARS: int = 6000
+MAX_COMMIT_MESSAGE_CHARS: int = 500
+
 
 def _ngrok_domain() -> str:
     """Hostname only, e.g. 'name.ngrok-free.app' (strips any https:// or trailing slash)."""

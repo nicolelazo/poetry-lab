@@ -2,6 +2,7 @@
 
 import hashlib
 import os
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Annotated
@@ -10,7 +11,9 @@ from pydantic import Field
 
 from poetry_lab import config
 from poetry_lab.sandbox import (
+    WORKSPACE_LOCK,
     WorkspaceError,
+    check_write_guards,
     check_writable_file,
     check_write_zone,
     is_handoff_file,
@@ -40,14 +43,18 @@ WRITE_FILE_DESCRIPTION = (
     "poems/, notes/, feedback/ and the four handoff files (PROJECT_STATE.md, PLAN_LOG.md, "
     "CHECKPOINTS.md, DECISIONS.md) can be written, up to 100 KB. If you pass if_version (from "
     "read_file) and the file changed since, the write is refused and the current version is "
-    "reported. Fails outside the write zones, for other extensions, or for content over 100 KB."
+    "reported. PLAN_LOG.md, CHECKPOINTS.md and DECISIONS.md are append-only: send the full old "
+    "text unchanged plus your new text at the end. Fails outside the write zones, for other "
+    "extensions, for blank content, or for content over 100 KB."
 )
 
 STR_REPLACE_DESCRIPTION = (
     "Replace exactly one occurrence of old_str with new_str in a file. Use it for small, "
     "targeted edits after read_file. old_str must appear exactly once or the call fails: if it "
     "appears 0 times check the exact text, if more than once widen old_str with surrounding "
-    "text. Same write zones, extensions and size limit as write_file. Fails if old_str is empty."
+    "text. Same write zones, extensions, size limit and append-only rules as write_file (to add "
+    "to PLAN_LOG.md, replace its last line with that line plus the new entry). Fails if old_str "
+    "is empty or the result would be blank."
 )
 
 DELETE_FILE_DESCRIPTION = (
@@ -56,6 +63,9 @@ DELETE_FILE_DESCRIPTION = (
     "can be deleted. The four handoff files can never be deleted. Fails if the file does not "
     "exist or is a folder."
 )
+
+
+REPLACE_RETRIES = 6
 
 
 def _version(data: bytes) -> str:
@@ -92,7 +102,15 @@ def _atomic_write(path: Path, data: bytes) -> None:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp.write_bytes(data)
-        os.replace(tmp, path)
+        # On Windows a virus scanner or indexer can hold the file for a moment; retry briefly.
+        for attempt in range(REPLACE_RETRIES):
+            try:
+                os.replace(tmp, path)
+                return
+            except PermissionError:
+                if attempt == REPLACE_RETRIES - 1:
+                    raise
+                time.sleep(0.05 * (attempt + 1))
     except OSError:
         tmp.unlink(missing_ok=True)
         raise WorkspaceError(f"Could not write {path.name!r}.") from None
@@ -157,20 +175,22 @@ def write_file(
     data = content.encode("utf-8")
     _check_size(data)
 
-    existed = target.exists()
-    if existed and not target.is_file():
-        raise WorkspaceError(f"Not a file: {path!r}.")
-    if if_version is not None:
-        if not existed:
+    with WORKSPACE_LOCK:
+        existed = target.exists()
+        if existed and not target.is_file():
+            raise WorkspaceError(f"Not a file: {path!r}.")
+        old_text = None
+        if existed:
+            old_data, old_text = _load(target, path)
+            if if_version is not None and _version(old_data) != if_version:
+                raise WorkspaceError(
+                    f"Version mismatch: {path!r} changed since you read it. "
+                    f"Current version is {_version(old_data)}. Read the file again before writing."
+                )
+        elif if_version is not None:
             raise WorkspaceError(f"if_version was given but {path!r} does not exist yet. Omit if_version to create it.")
-        current = _version(_load(target, path)[0])
-        if current != if_version:
-            raise WorkspaceError(
-                f"Version mismatch: {path!r} changed since you read it. "
-                f"Current version is {current}. Read the file again before writing."
-            )
-
-    _atomic_write(target, data)
+        check_write_guards(target, old_text, content)
+        _atomic_write(target, data)
     return {"path": _rel(target), "created": not existed, "bytes": len(data), "version": _version(data)}
 
 
@@ -191,22 +211,25 @@ def str_replace(
     check_writable_file(target)
     if old_str == "":
         raise WorkspaceError("old_str must not be empty.")
-    _, text = _load(target, path)
+    with WORKSPACE_LOCK:
+        _, text = _load(target, path)
 
-    old = _match_line_endings(text, old_str)
-    new = _match_line_endings(text, new_str)
-    count = text.count(old)
-    if count == 0:
-        raise WorkspaceError(f"old_str was not found in {path!r}. Check the exact text with read_file.")
-    if count > 1:
-        raise WorkspaceError(
-            f"old_str appears {count} times in {path!r}. Add surrounding text so it matches exactly once."
-        )
+        old = _match_line_endings(text, old_str)
+        new = _match_line_endings(text, new_str)
+        count = text.count(old)
+        if count == 0:
+            raise WorkspaceError(f"old_str was not found in {path!r}. Check the exact text with read_file.")
+        if count > 1:
+            raise WorkspaceError(
+                f"old_str appears {count} times in {path!r}. Add surrounding text so it matches exactly once."
+            )
 
-    line = text[: text.index(old)].count("\n") + 1
-    data = text.replace(old, new, 1).encode("utf-8")
-    _check_size(data)
-    _atomic_write(target, data)
+        line = text[: text.index(old)].count("\n") + 1
+        new_text = text.replace(old, new, 1)
+        check_write_guards(target, text, new_text)
+        data = new_text.encode("utf-8")
+        _check_size(data)
+        _atomic_write(target, data)
     return {"path": _rel(target), "replaced_at_line": line, "version": _version(data)}
 
 
@@ -223,17 +246,18 @@ def delete_file(
     if not target.is_file():
         raise WorkspaceError(f"Not a file: {path!r}. Only single files can be deleted.")
 
-    trash = config.WORKSPACE_ROOT / "trash"
-    stamp = datetime.now().strftime("%Y%m%dT%H%M%S")
-    flat = _rel(target).replace("/", "__")
-    dest = trash / f"{stamp}_{flat}"
-    n = 1
-    while dest.exists():
-        dest = trash / f"{stamp}_{n}_{flat}"
-        n += 1
-    try:
-        trash.mkdir(exist_ok=True)
-        os.replace(target, dest)
-    except OSError:
-        raise WorkspaceError(f"Could not move {path!r} to trash.") from None
+    with WORKSPACE_LOCK:
+        trash = config.WORKSPACE_ROOT / "trash"
+        stamp = datetime.now().strftime("%Y%m%dT%H%M%S")
+        flat = _rel(target).replace("/", "__")
+        dest = trash / f"{stamp}_{flat}"
+        n = 1
+        while dest.exists():
+            dest = trash / f"{stamp}_{n}_{flat}"
+            n += 1
+        try:
+            trash.mkdir(exist_ok=True)
+            os.replace(target, dest)
+        except OSError:
+            raise WorkspaceError(f"Could not move {path!r} to trash.") from None
     return {"deleted": _rel(target), "moved_to": _rel(dest)}

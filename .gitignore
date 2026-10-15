@@ -1,6 +1,8 @@
 .env
 .venv/
 workspace_private/
+# the workspace is its own git repo; keep its internals out of the code repo
+sample_workspace/.git/
 logs/
 __pycache__/
 *.pyc

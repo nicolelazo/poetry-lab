@@ -1,5 +1,6 @@
 """The sandbox: turns an agent-supplied path into a safe real path, or refuses."""
 
+import threading
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
 from poetry_lab import config
@@ -98,3 +99,33 @@ def check_writable_file(path: Path, root: Path | None = None) -> None:
 def is_handoff_file(path: Path, root: Path | None = None) -> bool:
     parts = relative_parts(path, root)
     return len(parts) == 1 and parts[0] in HANDOFF_FILES
+
+
+# ---- guards against bad writes (M4) ----
+
+# Logs and rules that later sessions rely on: new text may only be added at the end.
+APPEND_ONLY_FILES = ("PLAN_LOG.md", "CHECKPOINTS.md", "DECISIONS.md")
+
+# One lock for every change to the workspace (write, replace, delete, commit),
+# so two agents cannot interleave a read-modify-write on the same file.
+WORKSPACE_LOCK = threading.RLock()
+
+
+def check_write_guards(path: Path, old_text: str | None, new_text: str, root: Path | None = None) -> None:
+    """Refuse writes that look like mistakes. `old_text` is None when the file is new.
+
+    Rules: no NUL characters, never blank a file (use delete_file), and the
+    append-only handoff files must keep their existing text exactly.
+    """
+    if "\x00" in new_text:
+        raise WorkspaceError("Content contains NUL characters. Only plain text can be written.")
+    if new_text.strip() == "":
+        raise WorkspaceError("Refusing to write blank content. Use delete_file to remove a file.")
+    parts = relative_parts(path, root)
+    if old_text is not None and len(parts) == 1 and parts[0] in APPEND_ONLY_FILES:
+        before = old_text.replace("\r\n", "\n")
+        after = new_text.replace("\r\n", "\n")
+        if not after.startswith(before):
+            raise WorkspaceError(
+                f"{parts[0]} is append-only. Keep the existing text exactly as it is and add new text at the end."
+            )
