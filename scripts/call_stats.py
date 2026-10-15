@@ -1,7 +1,7 @@
 """Summarise logs/calls.jsonl: how many tool calls, which tools, how many failed.
 
 Usage:  .venv\\Scripts\\python.exe scripts\\call_stats.py [path-to-calls.jsonl]
-Efficiency is judged from logs, so this gives the numbers to quote in the report and demo.
+Efficiency is judged from logs, so this gives the numbers to quote in the report.
 """
 
 import json
