@@ -3,20 +3,22 @@
 Current truth. Every session reads this first and rewrites it before ending.
 
 ## Goal
-(Describe the goal of the poetry project here.)
+Editorial review of the three sample poems in poems/. Find an image that repeats across them and leave editor feedback. The agent is an editor and never writes new lines (see DECISIONS.md).
 
 ## Poems in progress
-- (none yet)
+- poems/harbor-lantern.md
+- poems/winter-bread.md
+- poems/paper-moths.md
 
 ## Poems done
 - (none yet)
 
 ## Open questions
-- (none yet)
+- Which image repeats across the poems? Suspects: lantern, light.
 
 ## Next step
-(What the next session should do first.)
+Search the poems for the repeated image (search first, do not open every file), read only the matching poems, and write one feedback note in feedback/.
 
 ## Last updated by
-Session id: (none)
-Date: (none)
+Session id: owner
+Date: 2026-10-15
