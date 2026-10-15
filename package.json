@@ -1,0 +1,6 @@
+{
+  "name": "poetry-lab",
+  "private": true,
+  "description": "Marker so Node treats ecosystem.config.js as CommonJS. No npm dependencies.",
+  "type": "commonjs"
+}
