@@ -17,7 +17,7 @@ An MCP file server that lets an AI agent work as a poetry editor with memory ove
 | Process manager | pm2 running two apps (server and ngrok) | One tool restarts both, logs both, and restores both after a reboot (via a logon task, because `pm2 startup` does not support Windows). |
 | Version control | git CLI through `subprocess` with fixed argument lists | No git library, no shell: user text can only ever be an argument. |
 | Config | `.env` read with python-dotenv | Secrets stay out of code and out of git. |
-| Testing | pytest (300+ tests), then MCP Inspector, then a real client | Each layer catches different mistakes; the path-escape and injection tests are automated so they keep passing as the code changes. |
+| Testing | pytest (about 300 tests), then MCP Inspector, then a real client | Each layer catches different mistakes; the path-escape and injection tests are automated so they keep passing as the code changes. |
 
 Code is split by responsibility: `server.py` (wiring), `config.py`, `sandbox.py` (what is allowed), `auth.py`, `logging_utils.py`, and `tools/` (one module per tool family). Nothing in `tools/` knows about HTTP or tokens.
 
@@ -53,11 +53,11 @@ Each tool does one verb on one noun, has a strict typed schema, and a descriptio
 
 ## 5. Evidence: one task across two sessions
 
-Task, using fake sample poems: two fresh agent sessions, started from an empty folder with no memory, each connecting to the live server over public HTTPS with the bearer token. Transcripts of every tool call: `transcripts/session1.md` and `transcripts/session2.md`. The final handoff files, call log and workspace git history are in `transcripts/evidence/`.
+Task, using fake sample poems: two fresh agent sessions, started from an empty folder with no memory, each connecting to the live server over public HTTPS with the bearer token. Transcripts of every tool call: `transcripts/session1.md` and `transcripts/session2.md`. The final handoff files and the server's call log (`calls.jsonl`) are in `transcripts/evidence/`.
 
 * **Session 1** read `PROJECT_STATE` and `DECISIONS`, searched for the repeated image *before* opening any poem, read the poems that matched, wrote one feedback note, committed, and updated the three handoff files. 17 tool calls (16 on this server plus one client-side tool-discovery call), 0 errors.
 * **Session 2** (no memory) read `PROJECT_STATE`, found the note, ran `compare_versions` on a poem, applied **only** the one change I approved ("its light a slow and patient tide." to "its light a patient tide.") with `str_replace`, appended decision 6 to `DECISIONS.md`, committed, and updated the handoff files. 15 tool calls (14 on this server plus one tool-discovery call), 0 errors.
-* **Totals from the server log** (`transcripts/evidence/call_stats.txt`): 30 calls, 0 errors: 13 `read_file`, 8 `write_file`, 3 `search_poems`, 2 `list_files`, 2 `git_commit`, 1 `compare_versions`, 1 `str_replace`. The workspace's own git history (`workspace_git_log.txt`) shows the initial snapshot, the feedback note, then the one-line edit, and `poem_diff.txt` shows exactly the approved change.
+* **Totals from the server log** (`transcripts/evidence/calls.jsonl`): 30 calls, 0 errors: 13 `read_file`, 8 `write_file`, 3 `search_poems`, 2 `list_files`, 2 `git_commit`, 1 `compare_versions`, 1 `str_replace`. The workspace's own git history had three commits: the initial snapshot, the feedback note, then the one-line edit to `harbor-lantern.md`.
 
 ### Honest assessment of efficiency
 

@@ -109,15 +109,7 @@ Write zones are `poems/`, `notes/`, `feedback/` and the four handoff files at th
 
 ## The handoff protocol
 
-Every session starts by reading `PROJECT_STATE.md` and `DECISIONS.md`, and ends by updating `PLAN_LOG.md` (what was planned, done, left), `CHECKPOINTS.md` (commit hash and why the state is consistent) and `PROJECT_STATE.md` (current truth). A real task run across two separate agent sessions (the second with no memory of the first) is saved in [transcripts/](transcripts/): the readable tool-call transcripts `session1.md` and `session2.md`, and `evidence/` with the final handoff files, the call log, the workspace's git history and the poem diff.
-
-## Checking agent efficiency
-
-Every tool call is logged to `logs/calls.jsonl`. Summarise it with:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\call_stats.py
-```
+Every session starts by reading `PROJECT_STATE.md` and `DECISIONS.md`, and ends by updating `PLAN_LOG.md` (what was planned, done, left), `CHECKPOINTS.md` (commit hash and why the state is consistent) and `PROJECT_STATE.md` (current truth). A real task run across two separate agent sessions (the second with no memory of the first) is saved in [transcripts/](transcripts/): the readable tool-call transcripts `session1.md` and `session2.md`, and `evidence/` with the final handoff files and the server's call log (`calls.jsonl`, one JSON line per tool call).
 
 ## Project layout
 
@@ -133,9 +125,8 @@ poetry_lab/
   tools/files.py          list_files, read_file, write_file, str_replace, delete_file
   tools/search.py         search_poems
   tools/gitlite.py        compare_versions, git_commit, git_log, workspace repo setup
-tests/                    pytest: sandbox, tools, git, auth, logging, scripts
+tests/                    pytest: sandbox, tools, git, auth, logging
 sample_workspace/         fake poems and the four handoff files (committed for graders)
-scripts/call_stats.py     summarises the call log
 transcripts/              tool-call transcripts of the two-session task, and evidence
 logs/                     call log (git-ignored, outside the workspace)
 ```
