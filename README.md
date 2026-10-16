@@ -142,4 +142,5 @@ logs/                     call log (git-ignored, outside the workspace)
 | Port 8000 already in use | An old `python server.py` is still running; stop it, then `pm2 restart poetry-lab-server`. |
 | New MCP server not visible in a chat | Chats load servers when they start. Open a new chat. |
 | One request fails with `ERR_NGROK_3004` / "ngrok gateway error" | The free tunnel occasionally drops a request before it reaches your server. Retry once; if it keeps failing check `pm2 status` and `pm2 logs poetry-lab-ngrok`. |
+| A console window titled `...\.venv\Scripts\python.exe` appears at logon | Windows Terminal opens a window for the server's console. `ecosystem.config.js` therefore starts the server with `pythonw.exe` (no console). After pulling that change run `pm2 delete poetry-lab-server`, `pm2 start ecosystem.config.js --only poetry-lab-server`, then `pm2 save`. |
 | `421 Invalid Host header` | `NGROK_DOMAIN` in `.env` does not match the domain you are calling; fix it and restart the server. |

@@ -51,10 +51,12 @@ if (!domain) {
 
 const host = env.MCP_HOST || "127.0.0.1";
 const port = env.MCP_PORT || "8000";
+// On Windows use pythonw.exe (the windowless Python): python.exe would open a console window
+// every time pm2 starts the server, e.g. at logon. Output still goes to the pm2 log files.
 const python = path.join(
   __dirname,
   ".venv",
-  process.platform === "win32" ? "Scripts/python.exe" : "bin/python"
+  process.platform === "win32" ? "Scripts/pythonw.exe" : "bin/python"
 );
 const logs = path.join(__dirname, "logs");
 
