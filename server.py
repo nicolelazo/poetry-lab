@@ -1,4 +1,7 @@
-"""Entry point: creates the FastMCP server, registers tools, starts Streamable HTTP with token auth."""
+"""Entry point: creates the FastMCP server, registers tools, serves Streamable HTTP behind URL token auth.
+
+Run with:  uvicorn server:app --host 127.0.0.1 --port 8000 --no-access-log   (or: python server.py)
+"""
 
 import sys
 
@@ -7,7 +10,7 @@ from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 
 from poetry_lab import config, logging_utils
-from poetry_lab.auth import AuthConfigError, BearerAuthMiddleware
+from poetry_lab.auth import AuthConfigError, TokenQueryMiddleware
 from poetry_lab.sandbox import WorkspaceError
 from poetry_lab.tools import files, gitlite, search
 
@@ -50,19 +53,33 @@ for func, description in TOOLS:
 
 
 def create_app(token: str):
-    """The MCP HTTP app wrapped so that every request needs the bearer token."""
-    return BearerAuthMiddleware(mcp.streamable_http_app(), token)
+    """The MCP HTTP app wrapped so that every request needs ?token=<token> in the URL."""
+    return TokenQueryMiddleware(mcp.streamable_http_app(), token)
 
 
-def main() -> None:
+def build_app():
+    """Startup checks, then the token-protected app. Exits with a clear message if it cannot start."""
     try:
         logging_utils.verify_log_location()
         if gitlite.ensure_workspace_repo():
             print("Created a new git repository inside the workspace.", file=sys.stderr)
-        app = create_app(config.MCP_TOKEN)
+        return create_app(config.POETRY_TOKEN)
     except (AuthConfigError, WorkspaceError, RuntimeError) as err:
         sys.exit(f"Refusing to start: {err}")
-    uvicorn.run(app, host=config.MCP_HOST, port=config.MCP_PORT, log_level="info")
+
+
+def __getattr__(name: str):
+    """Lets 'uvicorn server:app' build the app on first use, so importing this module needs no token."""
+    if name == "app":
+        global app
+        app = build_app()
+        return app
+    raise AttributeError(name)
+
+
+def main() -> None:
+    # access_log is off because uvicorn would write the full URL, including ?token=, to the log.
+    uvicorn.run(build_app(), host=config.MCP_HOST, port=config.MCP_PORT, log_level="info", access_log=False)
 
 
 if __name__ == "__main__":

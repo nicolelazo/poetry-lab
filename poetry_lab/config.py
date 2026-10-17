@@ -22,7 +22,7 @@ WORKSPACE_ROOT: Path = _workspace_root()
 MCP_HOST: str = os.environ.get("MCP_HOST", "127.0.0.1")
 MCP_PORT: int = int(os.environ.get("MCP_PORT", "8000"))
 MAX_FILE_BYTES: int = int(os.environ.get("MAX_FILE_BYTES", "102400"))
-MCP_TOKEN: str = os.environ.get("MCP_TOKEN", "")
+POETRY_TOKEN: str = os.environ.get("POETRY_TOKEN", "")
 
 def _log_dir() -> Path:
     path = Path(os.environ.get("LOG_DIR", "logs"))

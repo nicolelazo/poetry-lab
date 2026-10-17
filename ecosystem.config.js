@@ -1,7 +1,7 @@
 // pm2 config: keeps the Python MCP server and the ngrok tunnel running.
 // Start with:  pm2 start ecosystem.config.js
-// No secrets live here. The server reads MCP_TOKEN from .env itself, and ngrok
-// uses the authtoken saved in its own config.
+// No secrets live in this file. POETRY_TOKEN is read from .env (or the real environment) when pm2
+// starts and passed to the server process; ngrok uses the authtoken saved in its own config.
 
 const fs = require("fs");
 const path = require("path");
@@ -49,6 +49,10 @@ if (!domain) {
   throw new Error("NGROK_DOMAIN is not set. Add it to .env (see .env.example).");
 }
 
+if (!env.POETRY_TOKEN) {
+  throw new Error("POETRY_TOKEN is not set. Add it to .env (see .env.example).");
+}
+
 const host = env.MCP_HOST || "127.0.0.1";
 const port = env.MCP_PORT || "8000";
 // On Windows use pythonw.exe (the windowless Python): python.exe would open a console window
@@ -65,7 +69,8 @@ module.exports = {
     {
       name: "poetry-lab-server",
       script: python,
-      args: "server.py",
+      // --no-access-log: uvicorn would otherwise write the URL, including ?token=, to the log.
+      args: `-m uvicorn server:app --host ${host} --port ${port} --no-access-log`,
       interpreter: "none",
       cwd: __dirname,
       autorestart: true,
@@ -74,7 +79,7 @@ module.exports = {
       time: true,
       out_file: path.join(logs, "server.out.log"),
       error_file: path.join(logs, "server.err.log"),
-      env: { PYTHONUNBUFFERED: "1" },
+      env: { PYTHONUNBUFFERED: "1", POETRY_TOKEN: env.POETRY_TOKEN },
     },
     {
       name: "poetry-lab-ngrok",

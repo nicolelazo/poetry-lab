@@ -5,7 +5,7 @@ A Python **MCP file server** that gives an AI agent safe access to a private poe
 Course project: CS 3A / CS 3B Elective, Week 06 Model Context Protocol, Midterms Pt 1. Requirements are in [SPEC.md](SPEC.md); the design and security reasoning is in [REPORT.md](REPORT.md).
 
 ```
-agent / MCP client --HTTPS--> ngrok static domain --> 127.0.0.1:8000 (bearer token check)
+agent / MCP client --HTTPS--> ngrok static domain --> 127.0.0.1:8000 (URL token check)
                                                           |
                                          FastMCP server, 9 tools, call log
                                                           |
@@ -38,12 +38,12 @@ agent / MCP client --HTTPS--> ngrok static domain --> 127.0.0.1:8000 (bearer tok
    copy .env.example .env
    .\.venv\Scripts\python.exe -c "import secrets; print(secrets.token_urlsafe(32))"
    ```
-   Paste the printed value as `MCP_TOKEN` and put your ngrok static domain (hostname only, no `https://`) in `NGROK_DOMAIN`. The server refuses to start if the token is missing, a placeholder, or shorter than 32 characters.
+   Paste the printed value as `POETRY_TOKEN` and put your ngrok static domain (hostname only, no `https://`) in `NGROK_DOMAIN`. The server refuses to start if the token is missing, a placeholder, or shorter than 32 characters.
 
    | Variable | Meaning |
    | --- | --- |
    | `WORKSPACE_ROOT` | Folder the agent can see. `sample_workspace` for grading, a private folder outside the repo for your own poems. |
-   | `MCP_TOKEN` | Bearer token every request must send. |
+   | `POETRY_TOKEN` | Secret every request must carry in the URL as `?token=...`. |
    | `NGROK_DOMAIN` | Your static domain, e.g. `name.ngrok-free.app`. |
    | `MCP_HOST`, `MCP_PORT` | Local listen address (default `127.0.0.1:8000`). |
    | `MAX_FILE_BYTES` | Read/write size limit (default 102400). |
@@ -61,7 +61,7 @@ agent / MCP client --HTTPS--> ngrok static domain --> 127.0.0.1:8000 (bearer tok
    ```
    It listens on `http://127.0.0.1:8000/mcp` and creates the workspace's own git repo on first start.
 
-5. **Try it in MCP Inspector.** In a second terminal run `npx @modelcontextprotocol/inspector`, open the URL it prints, and choose transport **Streamable HTTP**, URL `http://127.0.0.1:8000/mcp`. Because auth is on, add a custom header `Authorization: Bearer <your MCP_TOKEN>` in Inspector's authentication settings, then Connect and open the **Tools** tab. All nine tools should be listed.
+5. **Try it in MCP Inspector.** In a second terminal run `npx @modelcontextprotocol/inspector`, open the URL it prints, and choose transport **Streamable HTTP**, URL `http://127.0.0.1:8000/mcp`. Because auth is on, add `?token=<your POETRY_TOKEN>` to the URL, then Connect and open the **Tools** tab. All nine tools should be listed.
 
 ## Put it on the internet and keep it running
 
@@ -80,16 +80,16 @@ agent / MCP client --HTTPS--> ngrok static domain --> 127.0.0.1:8000 (bearer tok
    ```
    Restart the computer, log in, wait about 30 seconds and run `pm2 status`.
 
-8. **Check the endpoint is protected.** A request without the token must get `401`:
+8. **Check the endpoint is protected.** A request without the token must get a plain `404 Not found` (never 401):
    ```powershell
    curl.exe -i -X POST https://YOUR-DOMAIN/mcp
    ```
 
 9. **Connect a real MCP client.** With Claude Code:
    ```powershell
-   claude mcp add --scope user --transport http poetry-lab https://YOUR-DOMAIN/mcp --header "Authorization: Bearer YOUR_TOKEN"
+   claude mcp add --scope user --transport http poetry-lab "https://YOUR-DOMAIN/mcp?token=YOUR_TOKEN"
    ```
-   Then open a **new** chat (a running chat does not pick up new servers). Clients that cannot send a custom header (for example claude.ai custom connectors, which only offer OAuth) cannot connect; SPEC section 7 describes a secret-in-the-URL fallback, which this project does not need and did not build.
+   Then open a **new** chat (a running chat does not pick up new servers). The same URL works as a claude.ai custom connector, because the secret is in the URL and the server never answers 401 or sends `WWW-Authenticate`, so no OAuth sign-in starts.
 
 ## The nine tools
 
@@ -120,7 +120,7 @@ package.json              marks the folder as CommonJS for Node (no dependencies
 poetry_lab/
   config.py               reads .env
   sandbox.py              safe_path(), write zones, write guards, workspace lock
-  auth.py                 bearer token middleware
+  auth.py                 URL token middleware
   logging_utils.py        call logger (logs/calls.jsonl)
   tools/files.py          list_files, read_file, write_file, str_replace, delete_file
   tools/search.py         search_poems
@@ -138,7 +138,7 @@ logs/                     call log (git-ignored, outside the workspace)
 | `ModuleNotFoundError: mcp.server.fastmcp` | mcp 2.x installed. Reinstall with `pip install -r requirements.txt` (pins `<2`). |
 | pm2 shows ngrok in `waiting restart`; log says agent version too old | Run `ngrok update` (needs 3.20.0+), then `pm2 restart poetry-lab-ngrok`. |
 | `ecosystem.config.js` loads as an empty object | A parent folder has a `package.json` with `"type": "module"`. The `package.json` in this repo overrides it; keep it. |
-| Server will not start: `Refusing to start` | Fix `MCP_TOKEN` in `.env` (32+ random characters). |
+| Server will not start: `Refusing to start` | Fix `POETRY_TOKEN` in `.env` (32+ random characters). |
 | Port 8000 already in use | An old `python server.py` is still running; stop it, then `pm2 restart poetry-lab-server`. |
 | New MCP server not visible in a chat | Chats load servers when they start. Open a new chat. |
 | One request fails with `ERR_NGROK_3004` / "ngrok gateway error" | The free tunnel occasionally drops a request before it reaches your server. Retry once; if it keeps failing check `pm2 status` and `pm2 logs poetry-lab-ngrok`. |

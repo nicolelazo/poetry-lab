@@ -49,9 +49,9 @@ poetry-lab/
   requirements.txt
   server.py                 entry point, creates FastMCP, registers tools, starts server
   poetry_lab/
-    config.py               reads env vars (WORKSPACE_ROOT, MCP_TOKEN, limits)
+    config.py               reads env vars (WORKSPACE_ROOT, POETRY_TOKEN, limits)
     sandbox.py              safe_path() and write zone checks
-    auth.py                 bearer token middleware
+    auth.py                 URL token middleware
     logging_utils.py        call logger
     tools/
       files.py              list_files, read_file, write_file, str_replace, delete_file
@@ -112,8 +112,8 @@ Tool descriptions are the prompt the agent reads. Write them carefully.
 
 ## 7. Security (requirement 01, rubric criterion E)
 
-* **Auth.** Every request to the public endpoint must send `Authorization: Bearer <MCP_TOKEN>`. Compare with `hmac.compare_digest`. Missing or wrong token returns 401. If my MCP client cannot send custom headers, fall back to a long random secret in the URL path, and note this tradeoff in the report.
-* **Secrets.** `MCP_TOKEN` and the ngrok authtoken live only in `.env`.
+* **Auth.** Every request to the public endpoint must carry `?token=<POETRY_TOKEN>` in the URL (claude.ai connectors cannot send custom headers and start OAuth on a 401). Compare with `secrets.compare_digest`. Missing or wrong token returns a plain 404 `Not found`, never 401 and never `WWW-Authenticate`. Run uvicorn with `--no-access-log` so the URL is not logged. Note this tradeoff in the report.
+* **Secrets.** `POETRY_TOKEN` and the ngrok authtoken live only in `.env`.
 * **Destructive actions.** `delete_file` moves to `trash/` and never erases. Handoff files cannot be deleted.
 * **Logging.** Every tool call is appended to `logs/calls.jsonl` outside the workspace so agents cannot edit it. Record time, tool name, a short summary of arguments, and success or error. Do not log full poem text.
 * **Subprocess safety.** Git is called with fixed argument lists. User text goes only into arguments, never into a shell string.
@@ -143,7 +143,7 @@ Four files at the workspace root. Starter templates:
 
 **M2 Sandbox.** All file tools plus `search_poems`, write zones, size limits, clear errors, and pytest tests for path escapes and each tool. Done when all tests pass and Inspector shows every tool working.
 
-**M3 Deploy.** Token auth, `.env` handling, ngrok static domain, pm2 `ecosystem.config.js`. Done when a real MCP client connects over HTTPS, a request without the token gets 401, and the server survives a restart of the computer.
+**M3 Deploy.** Token auth, `.env` handling, ngrok static domain, pm2 `ecosystem.config.js`. Done when a real MCP client connects over HTTPS, a request without the token gets 404, and the server survives a restart of the computer.
 
 **M4 Protocol.** Workspace git repo, `compare_versions`, `git_commit`, `git_log`, the four handoff files with templates, call logging, and bad write guards. Stretch if time allows: `if_version` locking fully tested, and a `repo_map` or tree view tool.
 

@@ -1,8 +1,8 @@
-"""Bearer token auth: every HTTP request must send 'Authorization: Bearer <MCP_TOKEN>'."""
+"""URL token auth: every HTTP request must carry '?token=<POETRY_TOKEN>' in its URL."""
 
-import hmac
-import json
 import logging
+import secrets
+from urllib.parse import parse_qs
 
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -18,14 +18,18 @@ class AuthConfigError(RuntimeError):
 def require_token(token: str | None) -> str:
     """Return the token if it is usable, else raise. Never includes the token in the message."""
     if not token or token.startswith("replace-with"):
-        raise AuthConfigError("MCP_TOKEN is not set. Put a long random value in .env (see .env.example).")
+        raise AuthConfigError("POETRY_TOKEN is not set. Put a long random value in .env (see .env.example).")
     if len(token) < MIN_TOKEN_LENGTH:
-        raise AuthConfigError(f"MCP_TOKEN is too short. Use at least {MIN_TOKEN_LENGTH} random characters.")
+        raise AuthConfigError(f"POETRY_TOKEN is too short. Use at least {MIN_TOKEN_LENGTH} random characters.")
     return token
 
 
-class BearerAuthMiddleware:
-    """Pure ASGI wrapper (so streaming responses keep working). Wrong or missing token gives 401."""
+class TokenQueryMiddleware:
+    """Pure ASGI wrapper (so streaming responses keep working).
+
+    A missing or wrong token gets a plain 404 'Not found': no 401 and no WWW-Authenticate header,
+    so clients do not start an OAuth sign-in and strangers cannot tell the endpoint exists.
+    """
 
     def __init__(self, app: ASGIApp, token: str):
         self.app = app
@@ -45,29 +49,22 @@ class BearerAuthMiddleware:
             await self.app(scope, receive, send)
             return
 
-        logger.warning("Rejected request: missing or invalid bearer token")
-        body = json.dumps({"error": "unauthorized"}).encode("utf-8")
+        logger.warning("Rejected request: missing or invalid token")
+        body = b"Not found"
         await send(
             {
                 "type": "http.response.start",
-                "status": 401,
+                "status": 404,
                 "headers": [
-                    (b"content-type", b"application/json"),
+                    (b"content-type", b"text/plain; charset=utf-8"),
                     (b"content-length", str(len(body)).encode()),
-                    (b"www-authenticate", b"Bearer"),
                 ],
             }
         )
         await send({"type": "http.response.body", "body": body})
 
     def _is_authorized(self, scope: Scope) -> bool:
-        header = b""
-        for name, value in scope.get("headers", []):
-            if name == b"authorization":
-                header = value
-                break
-        scheme, _, supplied = header.partition(b" ")
-        if scheme.lower() != b"bearer":
-            return False
+        params = parse_qs(scope.get("query_string", b"").decode("utf-8", "replace"))
+        supplied = params.get("token", [""])[0].encode("utf-8")
         # Constant-time comparison so response time does not leak how much of the token matched.
-        return hmac.compare_digest(supplied.strip(), self._expected)
+        return secrets.compare_digest(supplied, self._expected)

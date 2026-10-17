@@ -25,7 +25,7 @@ M1 to M5 are complete (see `git log`). The task run across two agent sessions is
 
 * Windows, Python 3.11.9, virtual environment in `.venv/` (run tools with `.\.venv\Scripts\python.exe`).
 * `mcp` is pinned below 2 (`mcp>=1.2,<2`). In mcp 2.x `FastMCP` was renamed `MCPServer` and SPEC's import `from mcp.server.fastmcp import FastMCP` breaks. The user chose to pin.
-* Server runs under pm2 (`poetry-lab-server`, `poetry-lab-ngrok`) behind a bearer token; restart it with `pm2 restart poetry-lab-server` after code changes. The MCP server is registered in the user's Claude Code config as `poetry-lab` (user scope).
+* Server runs under pm2 (`poetry-lab-server`, `poetry-lab-ngrok`) behind a URL token (`?token=<POETRY_TOKEN>`, 404 on failure, uvicorn `--no-access-log`); restart it with `pm2 restart poetry-lab-server` after code changes. The MCP server is registered in the user's Claude Code config as `poetry-lab` (user scope).
 * The workspace is its own git repo (auto-created by `ensure_workspace_repo()`; `sample_workspace/.git/` is ignored by the code repo). Git runs only as fixed argument lists pinned with `GIT_DIR`/`GIT_WORK_TREE`.
 * Write guards: PLAN_LOG, CHECKPOINTS and DECISIONS are append-only; blank and NUL content is refused. Every tool call is logged to `logs/calls.jsonl` (no poem text).
 * PowerShell 5.1 `Set-Content -Encoding utf8` adds a BOM; use the Edit/Write tools for source files instead.
